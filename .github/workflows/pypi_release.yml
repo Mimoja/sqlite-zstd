@@ -10,7 +10,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        cibw_arch: ["x86_64", "aarch64"]
+        cibw_arch: ["x86_64"]
     env:
       CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y"
       CIBW_BUILD_VERBOSITY: "1"
@@ -18,6 +18,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-tags: 'true'
+          fetch-depth: '0'
+
+      - name: "Install setuptools"
+        shell: bash
+        run: python3 -m pip install --upgrade setuptools>=61.2 setuptools_scm>=6.2
 
       - name: Set up QEMU
         if: matrix.os == 'ubuntu-latest' && matrix.cibw_arch == 'aarch64'
@@ -60,7 +67,7 @@ jobs:
 
       - name: Build sdist
         run: |
-          python -m pip install setuptools-rust setuptools wheel
+          python -m pip install setuptools-rust setuptools setuptools_scm wheel
           cd python/
           python setup.py sdist
 
@@ -76,7 +83,7 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: dist
-          path: python/dist/
+          path: python/dist
 
       - uses: pypa/gh-action-pypi-publish@v1.8.10
         with:
