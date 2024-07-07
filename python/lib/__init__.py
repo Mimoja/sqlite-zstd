@@ -1,13 +1,17 @@
 import sqlite3
 from importlib.resources import files, as_file
-from setuptools_scm import get_version
 
-real_version = get_version(root="..")
-pretend_version = get_version(root="..", local_scheme="no-local-version")
-if pretend_version != real_version:
-    __version__ = pretend_version
-else:
-    __version__ = real_version
+try:
+    from setuptools_scm import get_version
+
+    real_version = get_version(root="..")
+    pretend_version = get_version(root="..", local_scheme="no-local-version")
+    if pretend_version != real_version:
+        __version__ = pretend_version
+    else:
+        __version__ = real_version
+except Exception:
+    __version__ = "0.0.0"
 
 
 def load(conn: sqlite3.Connection) -> None:
