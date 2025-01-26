@@ -61,7 +61,7 @@ pub fn escape_sqlite_identifier(identifier: &str) -> String {
     format!("`{}`", identifier.replace('`', "``"))
 }
 
-/**
+/*
  * this is needed sometimes because _parameters are not allowed in views_, so using prepared statements is not possible :/
  */
 /*pub fn escape_sqlite_string(string: &str) -> String {
