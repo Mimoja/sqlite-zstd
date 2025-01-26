@@ -1,20 +1,30 @@
 name: Publish to PyPI
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   build_wheels:
-    name: Build wheels on ${{ matrix.os }} for ${{ matrix.cibw_python }} on ${{ matrix.cibw_arch }}
-    runs-on: ${{ matrix.os }}
+    name: Build wheels on ${{ matrix.os.os }} on ${{ matrix.os.cibw_arch }}
+    runs-on: ${{ matrix.os.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]
-        cibw_arch: ["x86_64", "aarch64"]
+        os:
+          - os: ubuntu-latest
+            cibw_arch: "x86_64"
+          - os: ubuntu-latest
+            cibw_arch: "aarch64"
+          - os: windows-latest
+            cibw_arch: "x86"
+          - os: macos-latest
+            cibw_arch: "arm64"
     env:
-      CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y"
+      CIBW_BEFORE_ALL: "rustup update"
+      CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain nightly -y"
+
       CIBW_BUILD_VERBOSITY: "1"
-      CIBW_ENVIRONMENT: 'PATH="$PATH:$HOME/.cargo/bin"'
+      CIBW_ENVIRONMENT_LINUX: 'PATH="$PATH:$HOME/.cargo/bin"'
+      CIBW_BEFORE_BUILD_LINUX: 'export PATH="$PATH:$HOME/.cargo/bin"'
 
     steps:
       - uses: actions/checkout@v4
@@ -22,30 +32,39 @@ jobs:
           fetch-tags: 'true'
           fetch-depth: '0'
 
-      - name: "Install setuptools"
+      - name: "Install setuptools into venv"
+        if: matrix.os.os != 'windows-latest'
         shell: bash
-        run: python3 -m pip install --upgrade setuptools>=61.2 setuptools_scm>=6.2
+        run: |
+          python3 -m venv path/to/venv
+          source path/to/venv/bin/activate
+          python3 -m pip install --upgrade setuptools>=61.2 setuptools_scm>=6.2
+
+      - name: "Install setuptools without venv"
+        if: matrix.os.os == 'windows-latest'
+        shell: bash
+        run: |
+          python3 -m pip install --upgrade setuptools>=61.2 setuptools_scm>=6.2
 
       - name: Set up QEMU
-        if: matrix.os == 'ubuntu-latest' && matrix.cibw_arch == 'aarch64'
+        if: matrix.os.os == 'ubuntu-latest' && matrix.os.cibw_arch == 'aarch64'
         uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3  # v3.0.0
         with:
-          platforms: arm64
+            platforms: arm64
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16.2
+        uses: pypa/cibuildwheel@v2.22.0
         env:
           CIBW_BUILD_VERBOSITY: 1
-          CIBW_BUILD: ${{ matrix.cibw_python }}
-          CIBW_ARCHS: ${{ matrix.cibw_arch }}
+          CIBW_ARCHS: ${{ matrix.os.cibw_arch }}
           CIBW_TEST_SKIP: "*universal2:arm64"
         with:
             package-dir: ./python
             output-dir: ./python/wheelhouse
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-${{ matrix.os.os }}-${{ matrix.os.cibw_arch }}
           path: ./python/wheelhouse/*.whl
 
   build_sdist:
@@ -70,22 +89,38 @@ jobs:
 
       - name: Build sdist
         run: |
+          python3 -m venv path/to/venv
+          source path/to/venv/bin/activate
           python -m pip install setuptools-rust setuptools setuptools_scm wheel
           cd python/
           python setup.py sdist
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: dist
           path: python/dist/*.tar.*
-  
+
   release:
     needs: [build_wheels, build_sdist]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v3
         with:
-          name: dist
+          name: dist-ubuntu-latest-x86_64
+          path: python/dist
+
+      - uses: actions/download-artifact@v3
+        with:
+            name: dist-ubuntu-latest-arm-aarch64
+            path: python/dist
+      - uses: actions/download-artifact@v3
+        with:
+          name: dist-windows-latest-x86
+          path: python/dist
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: dist-macos-latest-arm64
           path: python/dist
 
       - uses: pypa/gh-action-pypi-publish@v1.8.10
