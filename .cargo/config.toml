@@ -1,2 +1,5 @@
 [target.aarch64-linux-android]
 linker = "aarch64-linux-android23-clang"
+
+[target.'cfg(target_os = "macos")']
+rustflags = ["-C", "strip=none", "-C", "link-arg=-Wl,-S,-x"]
